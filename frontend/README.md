@@ -1,37 +1,57 @@
+# Friends of Friends: Frontend
+
+The web client for a friends-of-friends social network. Users create an account, add friends instantly, and see their network up to three degrees away (1st, 2nd and 3rd), similar to LinkedIn connections.
+
+Built with Next.js 14 (App Router), React Query, zod and Tailwind CSS.
+
 ## Getting Started
 
-First, install the dependencies:
+Install the dependencies:
 
 ```bash
 npm install
 ```
 
-Then, start the dev server:
+Start the dev server:
+
 ```bash
 npm run dev
 ```
 
-The frontend will now be running at [http://localhost:3000](http://localhost:3000).
+The frontend runs at [http://localhost:3000](http://localhost:3000). It expects the backend API at `http://localhost:8080` (configured in `next.config.mjs`).
 
-## Challenge Requirements
+## Pages
 
-To complete this challenge, you will need to create a server application that will interface with the provided frontend.
+| Route | Description |
+|---|---|
+| `/login` | Sign in with email and password |
+| `/register` | Create an account (name, email, password) |
+| `/app/profile` | The signed-in user's name and email, plus a dev tool to seed test data |
+| `/app/friends` | The user's network grouped by degree, with an "Add Friend" button for 2nd and 3rd degree connections |
 
-Your application must serve at `localhost:8080`.
+## API
 
-You won't need to modify any of the frontend code, but you are welcome to look at it.
+All endpoints accept and return JSON. Authentication uses a session cookie, so every request is sent with `credentials: "include"`.
 
+### Error format
 
-### Part 1:
+Failed requests return a non-2xx status with this body. The UI shows `message` to the user:
 
-You will implement a user registration and authentication system. A user has a name, email, password, and a list of friends.
+```ts
+type ErrorBody = {
+    error: true
+    message: string
+}
+```
 
-Your application must implement the following endpoints. All endpoints accept and return JSON.
+### Accounts and authentication
 
-## `POST /v1/auth/register`
-Used to register a new user account.
+A user has a name, email, password and a list of friends.
 
-### Request:
+#### `POST /v1/auth/register`
+Creates a new user account.
+
+Request:
 ```ts
 type RequestBody = {
     name: string
@@ -40,13 +60,12 @@ type RequestBody = {
 }
 ```
 
-### Response:
-Any 200 response
+Response: any 2xx status.
 
-## `POST /v1/auth/login`
-Signs in to an existing account.
+#### `POST /v1/auth/login`
+Signs in to an existing account and sets the session cookie.
 
-### Request:
+Request:
 ```ts
 type RequestBody = {
     email: string
@@ -54,16 +73,14 @@ type RequestBody = {
 }
 ```
 
-### Response:
-Any 200 response
+Response: any 2xx status.
 
-## `GET /v1/profile`
-Retrieves the profile data for the authenticated user.
+#### `GET /v1/profile`
+Returns the signed-in user's profile.
 
-### Request:
-None (use cookies for authentication)
+Request: none (the session cookie identifies the user).
 
-### Response:
+Response:
 ```ts
 type ResponseBody = {
     email: string
@@ -71,13 +88,11 @@ type ResponseBody = {
 }
 ```
 
-### Part 2:
+### Friends network
 
-You will implement a friends system, allowing users to add new friends, and view their network.
+Adding a friend is instant: there are no friend requests. Friendships go both ways.
 
-When a user adds another user as a friend, they immediately become friends, there is no friend request.
-
-When viewing their friends, the user sees not only their own friends, but also their second and third degree friends as well (like LinkedIn).
+The friends list includes the user's direct friends plus their 2nd and 3rd degree connections. Each person is listed once, at their closest degree.
 
 Example:
 ```
@@ -86,38 +101,44 @@ Sarah is friends with Rachel
 Rachel is friends with Sam
 Sam is friends with Jack
 
-On Bob's friend list, he sees:
+Bob's friends list shows:
 Sarah (1st)
 Rachel (2nd)
 Sam (3rd)
 
-Bob doesn't see Jack, as Jack is a 4th degree connection.
+Jack isn't shown because he's a 4th degree connection.
 ```
 
-## `POST /v1/friends/add`
+#### `POST /v1/friends/add`
 Adds another user as a friend.
 
-### Request:
+Request:
 ```ts
 type RequestBody = {
     friendEmail: string
 }
 ```
 
-### Response:
-Any 200 response
+Response: any 2xx status.
 
-### `GET /v1/friends`
-Returns the user's friend network.
+#### `GET /v1/friends`
+Returns the signed-in user's network.
 
-### Request:
-None
+Request: none.
 
-### Response:
+Response:
 ```ts
-type RequestBody = {
+type ResponseBody = {
     name: string
     email: string
     degree: '1st' | '2nd' | '3rd'
 }[]
 ```
+
+## Seeding test data
+
+The "Insert Fake Data" button on the profile page:
+1. Registers 100 random users.
+2. Signs in as each one and has them add a few random friends.
+3. Makes five of them friends with your account.
+4. Leaves you signed in as the last generated user, so afterwards you're sent back to the login page. Sign in again to see your network.
