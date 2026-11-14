@@ -131,3 +131,70 @@ Gaps and issues found:
 - Decided: no code changes, and no need to rewrite git history.
 
 ---
+
+## 2026-11-13 — Session 2: Part 1 (accounts and authentication)
+
+### What was asked
+Make the changes needed to finish Part 1 (register, login, profile), record them here, and don't push anything.
+
+### Decisions
+- **Sessions:** a signed JWT (HS256, `python-jose`) stored in an `HttpOnly` cookie named `session`, valid for 7 days. `SameSite=Lax` works because `localhost:3000` and `localhost:8080` count as the same site. `Secure` is off for local HTTP and should be turned on for HTTPS.
+- **Register also signs the user in**, since the frontend goes straight to `/app` afterwards.
+- **Emails are lowercased** before saving and when signing in.
+- **Login failures are deliberately vague:** a wrong password and an unknown email both return 401 "Invalid email or password", and both take about the same time (an unknown email is checked against a dummy hash).
+- **Validation:** name is 1–100 characters and can't be blank; password is at least 8 characters and at most 72 **bytes** (bcrypt ignores anything past 72 bytes, and accented or non-Latin characters take more than one byte each). The fake-data tool's generated passwords meet this.
+- **`GET /v1/profile` also returns `id`**, because the fake-data tool reads it.
+- No logout endpoint yet, since the frontend has no logout button.
+- `schema.sql` is unchanged; Part 1 only needs the existing `users` table.
+
+### Changes made (`backend/`)
+| File | Change |
+|---|---|
+| `app/config.py` | **New.** Loads `.env` once and holds all settings. `JWT_SECRET` is required; the app won't start without it. |
+| `app/database.py` | Added a `db_cursor()` helper that commits on success, rolls back on error, and always closes the connection. |
+| `app/security.py` | Added session token create/read and `set_session_cookie()`. `verify_password()` now handles a missing user safely. |
+| `app/deps.py` | **New.** `get_current_user` reads the session cookie and loads the user, or returns 401 "Not signed in". |
+| `app/errors.py` | **New.** Every error, including FastAPI's validation errors and unexpected crashes, now returns `{ "error": true, "message": "..." }`. Raw database errors are logged instead of sent to the browser. Crashes are caught in a middleware placed inside CORS, so 500 responses still carry CORS headers and the frontend can read them. |
+| `app/routes/auth.py` | Register: validation, lowercased email, `ON CONFLICT` so two sign-ups with the same email at the same moment give a 400 instead of a 500, and sets the cookie. **New** `POST /v1/auth/login`. |
+| `app/routes/profile.py` | **New.** `GET /v1/profile` returns `{ id, name, email }`. |
+| `app/main.py` | Registers the error handlers and the profile router. The CORS origin now comes from config. |
+| `.env.example` | Added `JWT_SECRET` and `FRONTEND_ORIGIN`. |
+
+This also fixes these issues from Session 1: the error format mismatch, no session handling, register not signing in, connections left open after errors, raw DB errors sent to the client, the duplicate-email race, emails not lowercased, and the duplicate `load_dotenv()`.
+
+### Testing
+- Postgres isn't installed on this machine, so the flow was tested over real HTTP against a running server, with the database replaced by an in-memory stand-in. **15/15 checks passed:**
+  - register → 201, sets an HttpOnly cookie; profile works right away
+  - duplicate email (any case) → 400; bad email, short password or blank name → 422; all with `{error, message}`
+  - profile with no cookie or a bad cookie → 401
+  - wrong password and unknown email → the same 401
+  - login works with any email case; logging in as someone else switches the session
+  - CORS allows `localhost:3000` with credentials
+- (Expanded to 21 checks after the self-review below.)
+- **Not yet tested against real Postgres or in the browser.** The test script lives outside the repo and isn't committed.
+
+### Self-review (same session)
+A second pass over the Part 1 code found and fixed:
+1. **500 errors were unreadable by the frontend.** Starlette runs a catch-all `exception_handler(Exception)` outside every middleware, including CORS, so the browser would block the response and the UI would show "Failed to fetch". Replaced it with a middleware that sits inside CORS.
+2. **The password limit counted characters, not bytes.** 40 accented characters (80 bytes) passed the 72-character limit and would have been silently cut short by bcrypt. It's now checked in bytes.
+3. **Messages read "name: Value error, Name can't be blank".** The `Value error, ` prefix is now stripped.
+4. Malformed JSON returned a message starting with a character position (e.g. "7: JSON decode error"); the position is now dropped.
+5. HTTP errors now keep their headers (e.g. `Allow` on a 405).
+
+Added 6 tests for these (the cleaned-up messages, the multi-byte password limit, 72 ASCII characters still accepted, malformed JSON, and a simulated database crash returning a generic 500 with CORS headers and no database details). **21/21 checks pass.**
+
+### To run it
+1. Install and start Postgres, then create the database and load `backend/schema.sql`.
+2. Copy `backend/.env.example` to `backend/.env`, then fill in the DB settings and a `JWT_SECRET`.
+3. From `backend/`: `source .venv/bin/activate && python -m app.main`.
+
+### Status summary
+| Item | Status |
+|---|---|
+| Part 1: register, login, profile | Done (tested against an in-memory stand-in for the database) |
+| Part 2: friends add/list | Not started |
+
+### Not done
+- Nothing committed or pushed.
+
+---
