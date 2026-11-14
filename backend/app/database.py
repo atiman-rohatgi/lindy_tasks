@@ -1,16 +1,30 @@
-import os
+from contextlib import contextmanager
 
 import psycopg2
-from dotenv import load_dotenv
 
-load_dotenv()
+from app import config
 
 
 def get_connection():
     return psycopg2.connect(
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
+        host=config.DB_HOST,
+        port=config.DB_PORT,
+        dbname=config.DB_NAME,
+        user=config.DB_USER,
+        password=config.DB_PASSWORD,
     )
+
+
+@contextmanager
+def db_cursor():
+    """Yield a cursor; commit on success, roll back on error, always close."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            yield cursor
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
