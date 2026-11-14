@@ -1,20 +1,23 @@
 import uvicorn
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import config
+from app.errors import register_error_handlers
 from app.routes.auth import router as auth_router
-
-load_dotenv()
+from app.routes.profile import router as profile_router
 
 app = FastAPI()
 
+register_error_handlers(app)
+
 app.include_router(auth_router, prefix="/v1/auth")
+app.include_router(profile_router, prefix="/v1")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=[config.FRONTEND_ORIGIN],
+    allow_credentials=True,  # needed for the session cookie
     allow_methods=["*"],
     allow_headers=["*"],
 )
