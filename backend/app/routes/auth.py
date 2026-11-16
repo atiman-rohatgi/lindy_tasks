@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.database import db_cursor
-from app.security import hash_password, set_session_cookie, verify_password
+from app.security import clear_session_cookie, hash_password, set_session_cookie, verify_password
 
 router = APIRouter()
 
@@ -74,3 +74,10 @@ def login(body: LoginRequest, response: Response):
 
     set_session_cookie(response, str(row[0]))
     return {"message": "Signed in"}
+
+
+# No sign-in required: signing out when already signed out still succeeds.
+@router.post("/logout")
+def logout(response: Response):
+    clear_session_cookie(response)
+    return {"message": "Signed out"}
