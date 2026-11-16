@@ -240,3 +240,48 @@ If the database was already created from the old `schema.sql`, re-run `backend/s
 - Nothing pushed. `main` is ahead of `origin/main`.
 
 ---
+
+## 2026-11-15 — Session 4: Logout, protected pages and tidy-up
+
+### What was asked
+Add a logout button and a matching endpoint, send signed-out visitors to `/login`, rename the browser tab to "Friends of Friends", make Enter submit the forms, tidy the remaining leftovers, and update the docs.
+
+### Decisions
+- **Logout endpoint:** `POST /v1/auth/logout` clears the cookie and doesn't require a signed-in user, so it can be called safely at any time. The cookie is cleared with the same attributes it was set with; otherwise the browser would keep it.
+- **Protected pages:** handled in `app/app/layout.tsx` by checking `GET /v1/profile`, rather than in Next.js middleware. Middleware could only see whether a cookie exists, not whether it's valid or expired.
+  - The profile page reuses the same cached query, so there's no extra request.
+  - A 401 sends you to `/login`. Other errors are shown on the page.
+  - React Query re-checks when you switch back to the tab, so an expired session also redirects.
+  - The redirect waits until no request is in flight, so a stale cached 401 can't trigger it while a fresh check is still running.
+- **The React Query cache is cleared on sign-in, register and logout,** so nothing from a previous account (profile, friends list) shows up for the next one.
+- **Lockfile:** kept `package-lock.json` and removed `pnpm-lock.yaml`, since `node_modules` was installed with npm and the docs say `npm install`.
+
+### Changes made
+| File | Change |
+|---|---|
+| `backend/app/security.py` | Added `clear_session_cookie()`. |
+| `backend/app/routes/auth.py` | Added `POST /v1/auth/logout`. |
+| `frontend/app/lib/api.ts` | **New.** `apiFetch` (sends the cookie, and throws an `ApiError` carrying the HTTP status), `isSignedOutError`, `fetchProfile`, `logout`. |
+| `frontend/app/app/layout.tsx` | Session check with redirect to `/login`, a Log out button in the nav, and the page shows only once the user is confirmed signed in. |
+| `frontend/app/app/profile/page.tsx` | Uses the shared `fetchProfile`. |
+| `frontend/app/login/page.tsx`, `frontend/app/register/page.tsx` | Real form submit, so Enter works. Use `apiFetch`, clear the cache on success, and drop unused imports. |
+| `frontend/app/layout.tsx` | Tab title "Friends of Friends", a real description, and unused imports removed. |
+| Removed | `frontend/app/page.tsx` (unused starter page), `frontend/public/next.svg`, `frontend/public/vercel.svg` (used only by that page), `frontend/pnpm-lock.yaml`. |
+| `README.md`, `frontend/README.md` | Documented the logout endpoint, the protected pages, Enter to submit, and the new `api.ts`. Removed the deleted starter page from the file guide. |
+
+### Checks
+- TypeScript (`tsc --noEmit`) and ESLint pass with no errors.
+- The backend loads with all six `/v1` routes. Logout returns 200 with a `Set-Cookie` that clears `session` (`Max-Age=0`, same `Path`, `HttpOnly` and `SameSite`).
+- **Not tested in the browser or against Postgres**, as agreed.
+
+### Status summary
+| Item | Status |
+|---|---|
+| Accounts: register, login, logout, profile | Built |
+| Friends: add, network | Built, not tested |
+| Frontend: protected pages, logout button, Enter to submit, tab title | Built, not tested in the browser |
+
+### Not done
+- Nothing committed or pushed.
+
+---
