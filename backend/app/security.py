@@ -48,3 +48,14 @@ def set_session_cookie(response: Response, user_id: str) -> None:
         secure=False,  # set True when served over HTTPS
         path="/",
     )
+
+
+def clear_session_cookie(response: Response) -> None:
+    # Must use the same attributes as set_session_cookie, or the browser keeps the cookie.
+    response.delete_cookie(
+        key=config.SESSION_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        path="/",
+    )
