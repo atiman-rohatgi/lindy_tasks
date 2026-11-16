@@ -29,6 +29,10 @@ The frontend runs at [http://localhost:3000](http://localhost:3000). It expects 
 | `/app/profile` | The signed-in user's name and email, plus a dev tool to seed test data |
 | `/app/friends` | The user's network grouped by degree, with an "Add Friend" button for 2nd and 3rd degree connections |
 
+Pages under `/app` require a signed-in user. When the app loads, `app/app/layout.tsx` checks the session with `GET /v1/profile` (and checks again when you switch back to the tab). If that returns 401, you're sent to `/login`. The navigation bar has a **Log out** button.
+
+Pressing Enter submits the sign-in and register forms.
+
 ## API
 
 All endpoints accept and return JSON. Authentication uses a session cookie, so every request is sent with `credentials: "include"`.
@@ -72,6 +76,13 @@ type RequestBody = {
     password: string
 }
 ```
+
+Response: any 2xx status.
+
+#### `POST /v1/auth/logout`
+Signs out by clearing the session cookie. It doesn't require a signed-in user, so calling it while signed out still succeeds.
+
+Request: none.
 
 Response: any 2xx status.
 
