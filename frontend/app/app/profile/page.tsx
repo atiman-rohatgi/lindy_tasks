@@ -1,34 +1,14 @@
 "use client";
-import { parseApiErrorMessage } from "@/app/lib/errors";
+import { fetchProfile } from "@/app/lib/api";
 import { insertFakeData } from "@/app/lib/insertFakeData";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { z } from "zod";
-
-const profileDataSchema = z.object({
-	email: z.string(),
-	name: z.string(),
-});
 
 export default function Page() {
+	// Same query as the /app layout, so this reads the cached result.
 	const { data, error, isLoading } = useQuery({
 		queryKey: ["profile"],
-		queryFn: async () => {
-			const response = await fetch(
-				`${process.env.NEXT_PUBLIC_API_ORIGIN}/v1/profile`,
-				{
-					credentials: "include",
-				}
-			);
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				throw new Error(parseApiErrorMessage(data));
-			}
-
-			return profileDataSchema.parse(data);
-		},
+		queryFn: fetchProfile,
 		retry: false,
 	});
 
