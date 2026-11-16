@@ -198,3 +198,45 @@ Added 6 tests for these (the cleaned-up messages, the multi-byte password limit,
 - Nothing committed or pushed.
 
 ---
+
+## 2026-11-15 — Session 3: Part 2 (friends network)
+
+### What was asked
+Plan Part 2, re-check the plan, then build it. No testing for now, and don't push.
+
+### Decisions
+- **Storage:** a `friendships` table that stores each friendship as two rows (A→B and B→A), so the network query only follows one direction. The primary key `(user_id, friend_id)` prevents duplicates and covers every lookup. A `CHECK` blocks self-friending, and `ON DELETE CASCADE` removes friendships with a deleted user.
+- **Network query:** three plain steps (`d1`, `d2`, `d3`), each with `DISTINCT`, instead of a recursive query. Recursive queries revisit the same people repeatedly in a dense network like the fake data.
+  - `MIN(degree)` keeps each person at their closest degree.
+  - `WHERE id <> me` removes the user, who always shows up at 2nd degree as their friends' friend.
+- **Adding a friend:**
+  - Both rows are written in one `INSERT … ON CONFLICT DO NOTHING`, so a friendship is never half-written.
+  - Re-adding an existing friend, from either side, returns **200**. The fake-data tool sends many duplicate and reverse adds.
+  - The self-check compares user ids rather than emails, so a differently-cased email is still caught.
+  - Unknown email → 404 "No user with that email". This reveals whether an email is registered, which is acceptable because the friends list already shows emails.
+- **Route path:** the list route is `""`, not `"/"`, so `/v1/friends` doesn't get redirected (a redirected cross-origin request can lose the cookie).
+
+### Changes made (`backend/`)
+| File | Change |
+|---|---|
+| `schema.sql` | Added the `friendships` table. Both tables now use `CREATE TABLE IF NOT EXISTS`, so the file can be re-run safely. |
+| `app/routes/friends.py` | **New.** `GET /v1/friends` returns `[{name, email, degree: '1st' \| '2nd' \| '3rd'}]` sorted by degree, then name. `POST /v1/friends/add` takes `{friendEmail}`. Both require a signed-in user. |
+| `app/main.py` | Registered the friends router at `/v1/friends`. |
+
+### Testing
+- **Not tested, as agreed.** The only check: the app loads, and all five `/v1` routes are registered.
+- The network query **has not been run against Postgres.** Worth trying before relying on it: the README's Bob → Sarah → Rachel → Sam → Jack example, and the frontend's "Insert Fake Data" button.
+
+### To run it
+If the database was already created from the old `schema.sql`, re-run `backend/schema.sql`; only the new `friendships` table will be added.
+
+### Status summary
+| Item | Status |
+|---|---|
+| Part 1: register, login, profile | Done (tested against an in-memory stand-in for the database) |
+| Part 2: friends add/list | Built, not tested |
+
+### Not done
+- Nothing pushed. `main` is ahead of `origin/main`.
+
+---
